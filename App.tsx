@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { TunerVisual } from './components/TunerVisual';
 import { Controls } from './components/Controls';
+import { InputMeter } from './components/InputMeter';
 import { audioEngine } from './services/audioEngine';
 import { TunerSettings, DetectedPitch, NoteDefinition } from './types';
 import { TUNINGS, getFrequency } from './constants';
-import { Mic, MicOff, Play, Volume2, AlertCircle } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 
 const DEFAULT_SETTINGS: TunerSettings = {
   a4Reference: 440,
@@ -20,6 +21,7 @@ function App() {
   const [settings, setSettings] = useState<TunerSettings>(DEFAULT_SETTINGS);
   const [isListening, setIsListening] = useState(false);
   const [currentPitch, setCurrentPitch] = useState<DetectedPitch | null>(null);
+  const [currentVolume, setCurrentVolume] = useState<number>(0);
   const [lastInTuneTime, setLastInTuneTime] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
   
@@ -68,9 +70,11 @@ function App() {
     };
   }, [currentPitch, settings.isAutoMode, settings.selectedStringIndex, currentTuning]);
 
-  const handlePitchDetected = useCallback((pitch: DetectedPitch | null) => {
-    setCurrentPitch(pitch);
-    if (pitch && Math.abs(pitch.deviation) < 5) {
+  const handleAudioUpdate = useCallback((data: { pitch: DetectedPitch | null, volume: number }) => {
+    setCurrentVolume(data.volume);
+    setCurrentPitch(data.pitch);
+    
+    if (data.pitch && Math.abs(data.pitch.deviation) < 5) {
         const now = Date.now();
         if (now - lastInTuneTime > 500) {
             if (navigator.vibrate) navigator.vibrate(10);
@@ -82,7 +86,7 @@ function App() {
   const startTuner = async () => {
     setError(null);
     try {
-        await audioEngine.start(handlePitchDetected, settingsRef.current.sensitivity, settingsRef.current.a4Reference);
+        await audioEngine.start(handleAudioUpdate, settingsRef.current.sensitivity, settingsRef.current.a4Reference);
         setIsListening(true);
     } catch (error: any) {
         console.error("Tuner start error:", error);
@@ -126,7 +130,7 @@ function App() {
   useEffect(() => {
       if (isListening) {
            audioEngine.stop();
-           audioEngine.start(handlePitchDetected, settings.sensitivity, settings.a4Reference).catch(e => console.log("Restart failed", e));
+           audioEngine.start(handleAudioUpdate, settings.sensitivity, settings.a4Reference).catch(e => console.log("Restart failed", e));
       }
   }, [settings.a4Reference, settings.sensitivity]); 
 
@@ -143,8 +147,8 @@ function App() {
 
       {/* Header */}
       <header className="p-6 flex justify-between items-center relative z-20">
-        <div className="flex items-center gap-2">
-            <div className={`w-3 h-3 rounded-full ${isListening ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></div>
+        <div className="flex items-center gap-4">
+            <InputMeter volume={currentVolume} isListening={isListening} />
             <h1 className="text-lg font-bold tracking-wider text-slate-200">PRO<span className="text-emerald-400">TUNE</span></h1>
         </div>
         <Controls settings={settings} updateSettings={(s) => setSettings(prev => ({ ...prev, ...s }))} />

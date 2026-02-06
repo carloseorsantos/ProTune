@@ -26,7 +26,7 @@ export class AudioEngine {
     }
   }
 
-  async start(onPitchDetected: (pitch: DetectedPitch | null) => void, sensitivity: number = 0.5, a4: number = 440) {
+  async start(onUpdate: (data: { pitch: DetectedPitch | null, volume: number }) => void, sensitivity: number = 0.5, a4: number = 440) {
     try {
       if (!this.audioContext) await this.init();
 
@@ -48,10 +48,9 @@ export class AudioEngine {
       this.mediaStreamSource.connect(this.analyser!);
       
       this.isListening = true;
-      this.detectPitchLoop(onPitchDetected, sensitivity, a4);
+      this.detectPitchLoop(onUpdate, sensitivity, a4);
 
       // Attempt to resume context if suspended, but don't await/block
-      // This handles autoplay policies where a gesture might be needed later
       this.resume().catch(() => {
           console.log("AudioContext resume pending user gesture.");
       });
@@ -77,8 +76,6 @@ export class AudioEngine {
 
   playTone(frequency: number) {
     if (!this.audioContext) this.init();
-    
-    // Ensure context is running for playback
     this.resume();
 
     if (this.osc) this.stopTone();
@@ -109,22 +106,25 @@ export class AudioEngine {
     }
   }
 
-  private detectPitchLoop(callback: (pitch: DetectedPitch | null) => void, sensitivity: number, a4: number) {
+  private detectPitchLoop(callback: (data: { pitch: DetectedPitch | null, volume: number }) => void, sensitivity: number, a4: number) {
     if (!this.isListening || !this.analyser) return;
 
     this.analyser.getFloatTimeDomainData(this.buffer);
-    const { frequency, clarity } = autoCorrelate(this.buffer, this.audioContext!.sampleRate, sensitivity);
+    const { frequency, clarity, volume } = autoCorrelate(this.buffer, this.audioContext!.sampleRate, sensitivity);
 
     if (frequency === -1) {
-      callback(null);
+      callback({ pitch: null, volume });
     } else {
       const { name, octave, cents, targetFrequency } = getNoteFromFrequency(frequency, a4);
       callback({
-        frequency,
-        note: name,
-        octave,
-        deviation: cents,
-        clarity: clarity
+        pitch: {
+            frequency,
+            note: name,
+            octave,
+            deviation: cents,
+            clarity: clarity
+        },
+        volume
       });
     }
 

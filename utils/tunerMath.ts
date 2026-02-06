@@ -19,25 +19,28 @@ export const getNoteFromFrequency = (frequency: number, a4: number = 440) => {
 };
 
 // Autocorrelation algorithm with parabolic interpolation
-export const autoCorrelate = (buffer: Float32Array, sampleRate: number, sensitivity: number): { frequency: number, clarity: number } => {
+export const autoCorrelate = (buffer: Float32Array, sampleRate: number, sensitivity: number): { frequency: number, clarity: number, volume: number } => {
   const SIZE = buffer.length;
-  // RMS (Root Mean Square) to check if there's enough signal
+  // RMS (Root Mean Square) to check signal volume
   let sumOfSquares = 0;
   for (let i = 0; i < SIZE; i++) {
     sumOfSquares += buffer[i] * buffer[i];
   }
   const rootMeanSquare = Math.sqrt(sumOfSquares / SIZE);
 
-  // Noise gate - if signal is too quiet, return -1
-  // Sensitivity slider adjusts this threshold. 
-  // High sensitivity = low threshold (0.01). Low sensitivity = high threshold (0.05)
-  const threshold = 0.06 - (sensitivity * 0.05); 
+  // Noise gate - prevents random noise from triggering the tuner.
+  // We use an extremely low floor (0.0001) to allow long sustain to be detected.
+  // Max threshold is also reduced significantly so standard sensitivity (0.5) is very permissive.
+  const minThreshold = 0.0001; 
+  const maxThreshold = 0.01;
+  const threshold = minThreshold + (1 - sensitivity) * (maxThreshold - minThreshold);
   
   if (rootMeanSquare < threshold) {
-    return { frequency: -1, clarity: 0 };
+    return { frequency: -1, clarity: 0, volume: rootMeanSquare };
   }
 
   // Autocorrelation
+  // We attempt to find zero-crossings to frame the signal for better periodicity
   let r1 = 0;
   let r2 = SIZE - 1;
   const thres = 0.2;
@@ -91,5 +94,5 @@ export const autoCorrelate = (buffer: Float32Array, sampleRate: number, sensitiv
   // c[0] is the energy (autocorrelation at lag 0)
   const clarity = c[0] > 0 ? maxval / c[0] : 0;
 
-  return { frequency: sampleRate / T0, clarity };
+  return { frequency: sampleRate / T0, clarity, volume: rootMeanSquare };
 };

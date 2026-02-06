@@ -11,7 +11,7 @@ interface TunerVisualProps {
 export const TunerVisual: React.FC<TunerVisualProps> = ({ currentPitch, targetNote, isListening, error }) => {
   const [smoothedCents, setSmoothedCents] = useState(0);
   const [smoothedClarity, setSmoothedClarity] = useState(0);
-  const requestRef = useRef<number>();
+  const requestRef = useRef<number>(0);
   const lastCentsRef = useRef<number>(0);
   const lastClarityRef = useRef<number>(0);
   
@@ -59,24 +59,28 @@ export const TunerVisual: React.FC<TunerVisualProps> = ({ currentPitch, targetNo
   const positionPercent = 50 + (clampedCents / range) * 50;
 
   // Color logic
-  let statusColor = "text-slate-400";
-  let needleColor = "bg-slate-500";
+  let statusColor = "text-slate-600";
+  let needleColor = "bg-slate-700";
+  let ringColor = "border-slate-800";
   
   if (currentPitch) {
     if (isInTune) {
-      statusColor = "text-emerald-400";
+      statusColor = "text-emerald-400 drop-shadow-[0_0_15px_rgba(52,211,153,0.6)]";
       needleColor = "bg-emerald-400";
+      ringColor = "border-emerald-500 shadow-[0_0_30px_rgba(16,185,129,0.3)]";
     } else {
-      statusColor = isSharp ? "text-orange-400" : "text-orange-400"; // Use orange for both flat/sharp for standard pro look
-      needleColor = "bg-orange-400";
+      // Use a vibrant orange/red for out of tune to contrast with green
+      statusColor = "text-orange-500 drop-shadow-[0_0_15px_rgba(249,115,22,0.4)]"; 
+      needleColor = "bg-orange-500";
+      ringColor = "border-orange-500/50";
     }
+  } else if (isListening) {
+     statusColor = "text-slate-400";
   }
 
   // Trigger Haptics if entering "In Tune" state
   useEffect(() => {
     if (isInTune && navigator.vibrate) {
-        // Debounce vibration to avoid buzzing
-        // Implementation handled in parent usually, or simple one-shot here
        // navigator.vibrate(20); 
     }
   }, [isInTune]);
@@ -84,86 +88,82 @@ export const TunerVisual: React.FC<TunerVisualProps> = ({ currentPitch, targetNo
   return (
     <div className="relative w-full max-w-md h-[500px] flex flex-col items-center justify-center">
       
-      {/* Note Display */}
-      <div className="mb-12 text-center relative z-10 flex flex-col items-center">
+      {/* Note Display Container */}
+      <div className="mb-12 relative z-10 flex flex-col items-center justify-center">
         
-        {/* Background Radial Glow based on Clarity */}
-        <div 
-           className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full blur-3xl transition-opacity duration-300 pointer-events-none ${isInTune ? 'bg-emerald-500/20' : 'bg-orange-500/10'}`}
-           style={{ opacity: smoothedClarity * 0.8 }}
-        ></div>
+        {/* Tuning Ring Indicator */}
+        <div className={`
+             w-64 h-64 rounded-full border-[6px] flex items-center justify-center transition-all duration-300 relative
+             ${ringColor} bg-slate-900/30 backdrop-blur-sm
+        `}>
+             
+             {/* Status Label (Top of ring) */}
+             {currentPitch && (
+                 <div className={`absolute -top-4 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest bg-slate-900 border ${isInTune ? 'border-emerald-500 text-emerald-400' : 'border-orange-500 text-orange-500'}`}>
+                    {isInTune ? 'Perfect' : isSharp ? 'Too High' : 'Too Low'}
+                 </div>
+             )}
 
-        <div className={`relative text-9xl font-bold tracking-tighter transition-all duration-300 ${statusColor} ${isInTune ? 'drop-shadow-[0_0_30px_rgba(16,185,129,0.4)]' : ''}`}>
-          {targetNote?.name.replace(/[0-9]/g, '') || '--'}
-          <span className="text-4xl align-top opacity-60 ml-1">{targetNote?.name.match(/[0-9]/g)}</span>
+             {/* Note Name */}
+             <div className={`relative text-9xl font-black tracking-tighter transition-all duration-200 ${statusColor} flex items-start`}>
+                {targetNote?.name.replace(/[0-9]/g, '') || '--'}
+                <span className="text-4xl mt-2 opacity-60 ml-1 font-medium">{targetNote?.name.match(/[0-9]/g)}</span>
+             </div>
+
+             {/* Cents Deviation (Bottom inside ring) */}
+             {currentPitch && (
+                 <div className={`absolute bottom-8 font-mono text-lg font-bold ${isInTune ? 'text-emerald-400' : 'text-slate-400'}`}>
+                     {currentPitch.deviation > 0 ? '+' : ''}{Math.round(currentPitch.deviation)}
+                 </div>
+             )}
         </div>
         
-        {/* Frequency & Cents */}
-        <div className="h-8 mt-4 flex items-center justify-center gap-4 text-slate-500 font-mono text-sm relative z-20">
+        {/* Frequency & Info below ring */}
+        <div className="h-8 mt-6 flex items-center justify-center gap-4 text-slate-500 font-mono text-sm relative z-20">
           {currentPitch && (
-            <>
-              <span className="w-20 text-right">{currentPitch.frequency.toFixed(1)} Hz</span>
-              <span className="w-px h-4 bg-slate-700"></span>
-              <span className={`w-20 text-left ${Math.abs(currentPitch.deviation) < 5 ? 'text-emerald-400' : ''}`}>
-                {currentPitch.deviation > 0 ? '+' : ''}{Math.round(currentPitch.deviation)}¢
-              </span>
-            </>
+             <span className="opacity-80">{currentPitch.frequency.toFixed(1)} Hz</span>
           )}
-          {!currentPitch && isListening && <span className="animate-pulse">Pluck a string...</span>}
+          {!currentPitch && isListening && <span className="animate-pulse text-slate-500">Listening...</span>}
           {error && <span className="text-red-400 font-bold">{error}</span>}
-          {!isListening && !error && <span>Please allow microphone access...</span>}
+          {!isListening && !error && <span>Microphone off</span>}
         </div>
 
-        {/* Signal Quality Bar */}
-        {isListening && (
-            <div className="flex items-center gap-2 mt-2 opacity-50 transition-opacity duration-500" style={{ opacity: currentPitch ? 0.7 : 0 }}>
-                <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500">Signal</div>
-                <div className="w-16 h-1 bg-slate-800 rounded-full overflow-hidden">
-                    <div 
-                        className={`h-full transition-all duration-300 ${isInTune ? 'bg-emerald-500' : 'bg-slate-400'}`}
-                        style={{ width: `${Math.min(100, smoothedClarity * 100)}%` }}
-                    />
-                </div>
-            </div>
-        )}
       </div>
 
-      {/* The Visual Meter */}
-      <div className="relative w-full h-64 flex items-center justify-center">
+      {/* The Visual Meter (Needle) */}
+      <div className="relative w-full h-32 flex items-center justify-center">
         
-        {/* Central "String" (Stationary Target) */}
-        <div className={`absolute top-0 bottom-0 w-1 rounded-full transition-colors duration-300 ${isInTune ? 'bg-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.5)]' : 'bg-slate-700'}`}></div>
+        {/* Center Marker */}
+        <div className={`absolute top-0 bottom-0 w-1 rounded-full z-10 transition-colors duration-300 ${isInTune ? 'bg-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.8)]' : 'bg-slate-700'}`}></div>
         
-        {/* Tick Marks */}
-        <div className="absolute top-1/2 w-full flex justify-between px-8 opacity-20 pointer-events-none">
+        {/* Scale Ticks */}
+        <div className="absolute top-1/2 w-full flex justify-between px-8 opacity-30 pointer-events-none">
              {[-50, -40, -30, -20, -10, 0, 10, 20, 30, 40, 50].map((tick) => (
-               <div key={tick} className={`h-2 w-0.5 bg-white ${tick === 0 ? 'h-6' : ''}`} />
+               <div key={tick} className={`h-3 w-0.5 bg-white ${tick === 0 ? 'h-8' : ''}`} />
              ))}
         </div>
 
-        {/* Moving Needle/String Indicator */}
+        {/* Moving Needle */}
         <div 
             className="absolute top-0 bottom-0 w-full transition-opacity duration-500"
             style={{ opacity: isListening ? 1 : 0.3 }}
         >
             <div 
-                className={`absolute top-0 bottom-0 w-1.5 rounded-full shadow-xl transition-colors duration-100 ${needleColor} ${isInTune ? 'shadow-[0_0_20px_rgba(16,185,129,1)]' : ''}`}
+                className={`absolute top-0 bottom-0 w-1 rounded-full shadow-xl transition-colors duration-100 ${needleColor} ${isInTune ? 'shadow-[0_0_20px_rgba(16,185,129,1)]' : ''}`}
                 style={{ 
                     left: `${positionPercent}%`,
                     transform: 'translateX(-50%)',
-                    transition: 'left 0.1s linear' // Smooth CSS transition for position
+                    transition: 'left 0.1s linear'
                 }}
             >
-                {/* The "Head" of the needle */}
-                <div className={`absolute bottom-0 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full ${needleColor} shadow-lg`}></div>
+                 <div className={`absolute -top-1 left-1/2 -translate-x-1/2 w-3 h-3 rotate-45 border-2 border-slate-900 ${needleColor}`}></div>
             </div>
         </div>
         
-        {/* Status Text (Flat / Sharp) */}
-        <div className="absolute bottom-[-40px] w-full flex justify-between px-10 font-bold text-xs uppercase tracking-[0.2em] text-slate-600">
-           <span className={`${smoothedCents < -10 && currentPitch ? 'text-orange-400 opacity-100' : 'opacity-30'}`}>Flat ♭</span>
-           <span className={`${isInTune ? 'text-emerald-400 opacity-100' : 'opacity-0'}`}>Perfect</span>
-           <span className={`${smoothedCents > 10 && currentPitch ? 'text-orange-400 opacity-100' : 'opacity-30'}`}>Sharp ♯</span>
+        {/* Direction Text */}
+        <div className="absolute bottom-[-10px] w-full flex justify-between px-10 font-bold text-xs uppercase tracking-[0.2em] text-slate-600">
+           <span className={`${smoothedCents < -5 && currentPitch ? 'text-orange-500 opacity-100' : 'opacity-20'}`}>Flat</span>
+           <span className={`${smoothedCents > 5 && currentPitch ? 'text-orange-500 opacity-100' : 'opacity-20'}`}>Sharp</span>
         </div>
 
       </div>
