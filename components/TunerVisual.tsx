@@ -11,9 +11,11 @@ interface TunerVisualProps {
 export const TunerVisual: React.FC<TunerVisualProps> = ({ currentPitch, targetNote, isListening, error }) => {
   const [smoothedCents, setSmoothedCents] = useState(0);
   const [smoothedClarity, setSmoothedClarity] = useState(0);
+  
+  // Define refs
   const requestRef = useRef<number>(0);
   const lastCentsRef = useRef<number>(0);
-  const lastClarityRef = useRef<number>(0);
+  const lastClarityRef = useRef<number>(0); // Explicitly defining this to fix ReferenceError
   
   // Animation loop for smoothing the needle movement
   const animate = () => {
