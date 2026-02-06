@@ -1,0 +1,7 @@
+{
+  "name": "ProTune",
+  "description": "A professional-grade, minimalistic chromatic tuner for guitar, bass, and ukulele.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
